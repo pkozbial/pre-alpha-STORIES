@@ -1,0 +1,5 @@
+#!/bin/bash
+
+list '-' > .tmp
+cat .tmp
+

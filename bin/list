@@ -1,0 +1,337 @@
+#!/usr/bin/ruby
+
+require './bin/Parser.rb'
+require './bin/Text.rb'
+require './bin/Manager.rb'
+require "~/LIB/Ruby/PK/DateTime/DateUtils.rb"
+require "~/LIB/Ruby/PK/TextUtils/PrettyPrint/TermColors.rb"
+
+
+EndOfTheWorld = PK::DateTime::DateUtils::DateParser::parseSimple( '9999-01-01' )
+
+
+
+# returns: (processed text, map: number->mail-id)
+def substituteMail( text )
+  idMap = {}
+  revIdMap = {}
+  n = 0
+  ret = text.gsub( /\{MAIL:([^}]*)\}/ ) { |id|
+
+    prevN = revIdMap[$1]
+
+    thisN = -1
+    if (prevN == nil)
+      n += 1
+      idMap[n] = $1
+      revIdMap[$1] = n
+      thisN = n
+    else
+      thisN = prevN
+    end
+    
+    Text::makeTextColor( Text::makeTextBold( "MAIL:#{thisN}" ), 'white' )
+  }
+  return ret, idMap
+end
+
+def printSummaryWithUpdates( parsedText )
+  list = Parser::subFromLastTagNamed( parsedText, 'summary' )
+  ( hasA, hasE, actFirst ) = Parser::checkActionsExpects( list )
+
+  stillBold = true 
+
+  text = ''
+
+  list.each do |tag| (tagName, tagContents, tagLine) = tag
+    if tagName == 'summary' # should be the first and only on this list
+      text += Text::prefixTextLines( tagContents, '  ' )
+    elsif tagName == 'update'
+      date = ''
+      if tagLine =~ /update\s+(\S+)/
+        d = PK::DateTime::DateUtils::DateParser::parseSimple( $1 )
+        if d == nil
+          date = ' DATE-ERROR!!!'
+        elsif d == PK::DateTime::DateUtils::DateParser::parseSimple( '9999-01-01' )
+          date = ''
+        else
+          date = ' ' + PK::DateTime::DateUtils::DatePrinter::fullDesc( d )
+        end
+      end
+      text += Text::makeTextBold( "  UPDATE#{date}\n" )
+      text += Text::prefixTextLines( tagContents, '  ' )
+    elsif tagName == 'action'
+      date = ''
+      d = nil
+      if tagLine =~ /action\s+(\S+)/
+        if $1 == '*'
+          date = ''
+        else
+          d = PK::DateTime::DateUtils::DateParser::parseSimple( $1 )
+          if d == nil
+            date = " DATE-ERROR!!!>#{$1}<"
+          else
+            date = ' ' + PK::DateTime::DateUtils::DatePrinter::fullDesc( d )
+          end
+        end
+      end
+      stillBold = false unless actFirst
+      txt = stillBold ? '  ' : '  /'
+      txt += "ACTION#{date}: " + Text::prefixTextLinesButFirst( tagContents, '  ' )
+      txt = Text::makeTextColor( txt,
+        if d != nil and d > Date.today
+          'cyan'
+        else
+          'red'
+        end
+      )
+      if stillBold
+        txt = Text::makeTextBold( txt )
+      end
+      text += txt
+    elsif tagName == 'expect'
+      date = ''
+      if tagLine =~ /expect\s+(\S+)/
+        if $1 == '*'
+          date = ''
+        else
+          d = PK::DateTime::DateUtils::DateParser::parseSimple( $1 )
+          if d == nil
+            date = " DATE-ERROR!!!>#{$1}<"
+          else
+            date = ' ' + PK::DateTime::DateUtils::DatePrinter::fullDesc( d )
+          end
+        end
+      end
+      stillBold = false if actFirst
+      txt = stillBold ? '  ' : '  /'
+      txt += "EXPECT#{date}: " + Text::prefixTextLinesButFirst( tagContents, '  ' )
+      txt = Text::makeTextColor( txt, 'green' )
+      if stillBold
+        txt = Text::makeTextBold( txt )
+      end
+      text += txt
+    else
+    end
+  end
+    (textProcessed, mailMap) = substituteMail( text )
+    print textProcessed
+
+    `echo -n > .mailMap`
+    (1..mailMap.size).each do |n|
+#      print "MAIL #{n}: #{mailMap[n]}\n"
+      `echo '#{mailMap[n]}' >> .mailMap`
+    end
+end
+
+def printTitleLine( rawText, parsedText, n )
+  list = Parser::subFromLastTagNamed( parsedText, 'summary' )
+  ( hasA, hasE, actFirst, soonestAction, soonestExpect ) = Parser::checkActionsExpects( list )
+
+  colorForAction = 'red'
+  unless soonestAction == nil
+    if soonestAction > Date.today
+      colorForAction = 'cyan'
+    end 
+  end
+
+  statusText = ''
+
+  print Text::makeTextColor( "#{n<10?' ':''}#{n}. ", 'blue' )
+  if (hasA)
+    if (hasE)
+      if (actFirst)
+        statusText += Text::makeTextBold( Text::makeTextColor( '[A', colorForAction ) )
+        statusText += Text::makeTextColor( 'e', 'green' )
+        statusText += Text::makeTextBold( Text::makeTextColor( ']', colorForAction ) )
+      else
+        statusText += Text::makeTextBold( Text::makeTextColor( '[E', 'green' ) )
+        statusText += Text::makeTextColor( 'a', 'red' )
+        statusText += Text::makeTextBold( Text::makeTextColor( ']', 'green' ) )
+      end
+    else
+      statusText += Text::makeTextBold( Text::makeTextColor( '[A]', colorForAction ) )
+    end
+  else
+    if (hasE)
+      statusText += Text::makeTextBold( Text::makeTextColor( '[E]', 'green' ) )
+    end
+  end
+
+  if (hasA and soonestAction != nil and soonestAction != EndOfTheWorld)
+    t = PK::DateTime::DateUtils::DatePrinter::descriptive(soonestAction)
+    if t == nil or t == ''
+      t = PK::DateTime::DateUtils::DatePrinter::print( soonestAction )
+    end
+    t = Text::makeTextColor( ' ('+t+')', colorForAction )
+    if actFirst
+      t = Text::makeTextBold( t )
+    end
+    statusText += t
+  end
+  
+  if (hasE and soonestExpect != nil and soonestExpect != EndOfTheWorld)
+    t = PK::DateTime::DateUtils::DatePrinter::descriptive(soonestExpect)
+    if t == nil or t == ''
+      t = PK::DateTime::DateUtils::DatePrinter::print( soonestExpect )
+    end
+    t = Text::makeTextColor( ' ('+t+')', 'green' )
+    unless actFirst
+      t = Text::makeTextBold( t )
+    end
+    statusText += t
+  end
+
+  statusText = ' '+statusText if (hasA or hasE)
+
+  # headline - short or custom
+
+  headline = nil
+  if File.exists?( './hooks/custom-headline.rb' )
+    require './hooks/custom-headline.rb'
+    headline = Format::format( rawText, parsedText )
+  else
+    headline = Text::makeTextBold(
+                 Text::makeTextColor(
+                   Parser::getShort( parsedText ),
+                   'blue' ))
+  end
+
+  print headline, statusText, "\n"
+end
+
+
+
+
+
+def main(argv)
+  
+  here='.'
+  here.chomp!
+
+  doFilter = false
+  if File.exists?( './hooks/list-filter.rb' )
+    require './hooks/list-filter.rb'
+    doFilter = true
+  end
+
+  
+  n = 0
+  
+  currentRow = `cd #{here}; cat .current 2>/dev/null`
+  currentRow.chomp!
+  if currentRow == ''
+    currentRow = nil
+  else
+    currentRow = currentRow.to_i
+  end
+
+  `echo ' ' > .list`
+
+  prevText = nil
+  prevParsedText = nil
+
+  if File.exists?( '.dir' )
+    dir = `cat .dir`.chomp
+  else
+    dir = ''
+  end
+
+  Manager::eachStoryD( here, dir ) do |fname,text|  
+    parsedText = Parser::parse( text )
+
+
+    if (not doFilter) or (Filter::pass?( text, parsedText ))
+
+      if File.exists?( './hooks/between-stories.rb' )
+        require './hooks/between-stories.rb'
+        Hook::execute( prevText, prevParsedText, text, parsedText )
+      end
+
+      n += 1
+      `echo '#{fname}' >> .list`
+
+      if argv[0] == nil or argv[0] == '-'
+        if argv[0] == nil
+          `echo 'list' > .cmd`
+        end
+        short = Parser::getShort( parsedText )
+        short = "(no short description)" if short == nil
+        print Text::makeTextColor( "#{n}. ", 'blue' )
+        print Text::makeTextBold( Text::makeTextColor( short , 'blue' ) )
+        print "\n"
+      elsif argv[0] == 'f'
+        `echo 'list f' > .cmd`
+        printTitleLine( text, parsedText, n )
+        printSummaryWithUpdates( parsedText )
+      elsif argv[0] == 's'
+        `echo 'list s' > .cmd`
+        printTitleLine( text, parsedText, n )
+        printSummaryWithUpdates( parsedText ) if currentRow == n
+      else
+        print "USAGE\n"
+        exit 1
+      end
+
+      prevText = text
+      prevParsedText = parsedText
+
+    end
+
+  end
+
+  unless prevText == nil
+    if File.exists?( './hooks/between-stories.rb' )
+      require './hooks/between-stories.rb'
+      Hook::execute( prevText, prevParsedText, nil, nil )
+    end
+  end
+
+
+
+  dirtxt =
+    if dir == ''
+      '(root)'
+    else
+      dir
+  end
+  clr = PK::TextUtils::PrettyPrint::TermColors::bgBlue+
+        PK::TextUtils::PrettyPrint::TermColors::fgWhite+
+        PK::TextUtils::PrettyPrint::TermColors::bold
+  rst = PK::TextUtils::PrettyPrint::TermColors::reset
+  txt = "#{clr}  #{dirtxt}                                             #{rst}\n"
+  print txt
+
+  sdirnum = 1
+  `echo -n '' > .dirlist`
+  Manager::eachDir( here, dir ) do |subdir|
+#    if sdirnum == 1
+#      print "\n"
+#    end
+    clr = PK::TextUtils::PrettyPrint::TermColors::fgWhite+
+          PK::TextUtils::PrettyPrint::TermColors::bold
+    rst = PK::TextUtils::PrettyPrint::TermColors::reset
+    subdirn = sprintf "%2d", sdirnum
+    txt = "#{clr}#{subdirn}. #{subdir}#{rst}\n"
+    print txt
+    sdirnum += 1
+    if (dir == '')
+      `echo #{subdir} >> .dirlist`
+    else
+      `echo #{dir}/#{subdir} >> .dirlist`
+    end
+  end
+#  if sdirnum > 1
+#    print "\n"
+#  end
+
+  
+end
+
+main(ARGV)
+
+if File.exists?( './hooks/after-list.rb' )
+  require './hooks/after-list.rb'
+  Hook::execute
+end
+

@@ -1,0 +1,7 @@
+#!/bin/bash
+
+if mu.rb; then
+  dec_current
+  r
+fi
+

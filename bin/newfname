@@ -1,0 +1,16 @@
+#!/usr/bin/ruby
+
+
+
+maxNum = 0
+`cd .; ls`.sort.each do |fname|
+  fname.chomp!
+  if fname =~ /^(\d\d\d\d\d\d)\.txt$/
+    num = $1.to_i
+    maxNum = num if num > maxNum
+  end
+end
+
+newFName = sprintf "%06d.txt", maxNum+1
+print "#{newFName}\n"
+

@@ -1,0 +1,9 @@
+#!/bin/bash
+
+if [ -f .cmd ]; then
+  source .cmd > .tmp
+  cat .tmp
+else
+  echo 'NO PREVIOUS COMMAND'
+fi
+

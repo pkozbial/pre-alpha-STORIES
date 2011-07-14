@@ -1,0 +1,46 @@
+#!/usr/bin/ruby
+
+here='.'
+
+storyN = ARGV[0]
+if ((storyN == nil) or (storyN == ''))
+  storyN = `cat #{here}/.current 2>/dev/null`.chomp
+end
+
+storyN = storyN.to_i
+
+fname = `cat #{here}/.list | head -#{storyN+1} | tail -1`
+fname.chomp!
+
+
+tmpfname = `mktemp ./.tmp.XXXXXXXXXXXXXXXXXX`; tmpfname.chomp!
+
+`cat #{here}/#{fname} > #{tmpfname}`
+
+tmpfname2 = `mktemp ./.tmp.XXXXXXXXXXXXXXXXXX`; tmpfname2.chomp!
+
+# post process
+again = true
+while again
+  system( "vim #{tmpfname}" )
+
+  ppresult = `editpp #{tmpfname} #{tmpfname2}`
+
+  if (ppresult == 'ok')
+    print "postprocessing ok\n"
+    again = false
+  else
+    print "POSTPROCESSING FAILED:\n\n"
+    print ppresult
+    print "\n\n"
+    print "--- press return to return to edit...\n\n"
+    system "bash -c read"
+  end
+end
+
+#print ">>>>>cat #{tmpfname2} > #{here}/#{fname}<<<<\n"
+
+`cat #{tmpfname2} > #{here}/#{fname}`
+`rm #{tmpfname}`
+`rm #{tmpfname2}`
+

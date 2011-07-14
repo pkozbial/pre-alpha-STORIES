@@ -1,0 +1,81 @@
+#!/usr/bin/ruby
+
+require '~/LIB/Ruby/PK/TextUtils/Formats/IntList.rb'
+
+if ARGV.size != 1
+  print "Usage: vm <mail number(s)>\n"
+  exit 1
+end
+
+mcount = `cat .mailMap | wc -l`.chomp.to_i
+#mnum = ARGV[0].to_i
+
+numList = nil
+if ARGV[0] == '*' or ARGV[0] == 'all'
+  numList = PK::TextUtils::Formats::IntList::new
+  r = PK::TextUtils::Formats::IntList::Range::new
+  r.from, r.to = 1, mcount
+  numList.addRange( r )
+else
+  numList = PK::TextUtils::Formats::IntList::parseText( ARGV[0] )
+end
+
+chklist = []
+
+numList.eachValue do |num|
+  if (num <= 0) or (num > mcount)
+    print "Invalid mail number #{num}\n"
+    exit 1
+  end
+  mid = `cat .mailMap | head -#{num} | tail -1`.chomp
+  chklist += [mid]
+end
+
+if chklist.length == 1
+
+  mid = chklist[0]
+  pmid = mid.gsub( /[^a-zA-Z0-9]/ ) { |c| "[#{c}]" }
+  pmid = pmid.gsub( /\%/, '\%' )
+  pmid = pmid.gsub( /\$/, '\$' )
+  pmid = pmid.gsub( /\@/, '\@' )
+
+  #print "Mail id: <#{pmid}>\n"
+  
+  `echo 'source ~/.muttrc' > ./.muttrc-now`
+  `echo 'color normal brightblue default' >> ./.muttrc-now`
+  `echo 'color quoted green default' >> ./.muttrc-now`
+  
+  ### NOTE!!! the push works in reverse sequence:
+  ### we push <enter> first, so it will be executed last
+  `echo "push <enter>" >> ./.muttrc-now`
+  `echo "push '"'/~i #{pmid}'"'" >> ./.muttrc-now`
+  
+  system 'mutt -R -f \'=read\' -F ./.muttrc-now'
+
+else
+
+  File.open( '.mail-list', 'w+' ) do |f|
+    chklist.each do |chk|
+      f.print chk, "\n"
+    end
+  end
+  system "bin/multimail < .mail-list"
+
+  `echo 'source ~/.muttrc' > ./.muttrc-now`
+  
+  ### NOTE!!! the push works in reverse sequence:
+  ### we push <enter> first, so it will be executed last
+  #`echo "push <enter>" >> ./.muttrc-now`
+  #`echo "push '"'/~i #{pmid}'"'" >> ./.muttrc-now`
+  
+  #`echo "push <enter>" >> ./.muttrc-now`
+  `echo 'color normal brightblue default' >> ./.muttrc-now`
+  `echo 'color quoted green default' >> ./.muttrc-now`
+
+  system 'mutt -R -f \'.tmp.mail.box\' -F ./.muttrc-now'
+end
+
+
+
+
+

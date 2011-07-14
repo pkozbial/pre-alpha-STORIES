@@ -1,0 +1,11 @@
+#!/bin/bash
+
+echo '0' > .current
+if [ "$1" = '' ]; then
+  echo '' > .dir
+else
+  cat .dirlist | head -n $1 | tail -n 1 > .dir
+fi
+
+r
+

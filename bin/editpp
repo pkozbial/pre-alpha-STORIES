@@ -1,0 +1,28 @@
+#!/usr/bin/ruby
+
+require "~/LIB/Ruby/PK/DateTime/DateUtils.rb"
+
+ifname = ARGV[0]
+ofname = ARGV[1]
+
+outf = File.open( ofname, "w" )
+
+File.open( ifname ).each do |line| line.chomp!
+  # substitute {today} with today's date
+  begin
+    today = PK::DateTime::DateUtils::DatePrinter::today
+    line.gsub!( /\{today\}/, today )
+  end
+  # substitute plain <update> with <update...> with today's date
+  begin    
+    today = PK::DateTime::DateUtils::DatePrinter::today
+    line.gsub!( /\<update\>/, "<update #{today}>" )
+  end
+  # print resulting line
+  outf.print "#{line}\n"
+end
+
+outf.close
+
+print "ok"
+

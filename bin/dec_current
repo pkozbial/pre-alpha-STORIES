@@ -1,0 +1,13 @@
+#!/usr/bin/ruby
+
+currentRow = `cat .current 2>/dev/null`
+
+currentRow.chomp!
+
+unless currentRow == ''
+  currentRow = currentRow.to_i
+  currentRow -= 1
+  `echo #{currentRow} > .current`
+end
+
+

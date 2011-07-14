@@ -1,0 +1,8 @@
+#!/bin/bash
+
+name=`newfname`
+cp bin/template-begin.txt $name
+cat .dir >> $name
+cat bin/template-end.txt >> $name
+vim $name
+

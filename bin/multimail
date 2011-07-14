@@ -1,0 +1,52 @@
+#!/usr/bin/env perl
+
+use strict;
+
+use Mail::Box::Manager;
+
+
+
+my @chkList = ();
+my %chkMap = ();
+
+print "multimail ----->\n";
+while (my $chk = <>) {
+  chomp $chk;
+  $chkMap{$chk} = 1;
+  push @chkList, $chk;
+  print "$chk\n";
+}
+
+
+my $mgr = Mail::Box::Manager->new;
+
+my $folderRead = $mgr->open( folder => "/home/ja/Mail/read" );
+foreach my $msg ($folderRead->messages) {
+  my $id = $msg->messageId;
+
+  if (defined (my $v = $chkMap{$id})) {
+    if ($v == 1) {
+      $chkMap{$id} = $msg;
+      print "found mail\n"
+    } else {
+      print "Warning. Duplicate message of the same id ($id)\n";
+    }
+  }
+}
+
+`rm -f .tmp.mail.box`;
+my $folderTmp = $mgr->open( folder => ".tmp.mail.box", access => 'rw', create => 1 );
+
+foreach my $id (@chkList) {
+  my $msg = $chkMap{$id};
+  if ($msg == 1) {
+    die "MESSAGE $id NOT FOUND!"
+  }
+  $mgr->copyMessage( $folderTmp, $msg );
+}
+
+
+$folderTmp->close();
+
+$folderRead->close();
+

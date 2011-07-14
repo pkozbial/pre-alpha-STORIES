@@ -1,0 +1,14 @@
+#!/usr/bin/ruby
+
+here='.'
+here.chomp!
+
+if ARGV[0] == nil
+  n = `cat .current`.to_i
+else
+  n = ARGV[0].to_i
+end
+fname = `cat #{here}/.list | head -#{n+1} | tail -1`
+fname.chomp!
+print "#{fname}\n"
+

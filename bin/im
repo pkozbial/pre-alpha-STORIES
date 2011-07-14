@@ -1,0 +1,19 @@
+#!/usr/bin/ruby
+
+if ARGV.size != 1
+  print "Usage: vm <mail number>\n"
+  exit 1
+end
+
+mcount = `cat .mailMap | wc -l`.chomp.to_i
+mnum = ARGV[0].to_i
+
+if (mnum <= 0) or (mnum > mcount)
+  print "Invalid mail number #{mnum}\n"
+  exit 1
+end
+
+mid = `cat .mailMap | head -#{mnum} | tail -1`.chomp
+
+print mid, "\n"
+
